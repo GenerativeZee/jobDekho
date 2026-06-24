@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: jobdekho-postgres
+    environment:
+      POSTGRES_USER: jobdekho
+      POSTGRES_PASSWORD: jobdekho123
+      POSTGRES_DB: jobdekho
+    ports:
+      - "5433:5432"
+    volumes:
+      - jobdekho_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jobdekho"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: jobdekho-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - jobdekho_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  jobdekho_postgres_data:
+  jobdekho_redis_data:
