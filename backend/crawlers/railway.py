@@ -54,14 +54,16 @@ _AGE = {
     "default":  (18, 33),
 }
 
+_RRB_URL = "https://indianrailways.gov.in/railwayboard/view_section.jsp?lang=0&id=0,1,304,366,554"
+
 FALLBACK: list[dict] = [
-    {"title": "RRB Group D 2026 (Level 1 Posts)",           "key": "group_d",   "vacancies": 32438, "application_end": "2026-08-05"},
-    {"title": "RRB NTPC Graduate Level 2026",               "key": "ntpc",      "vacancies": 11558, "application_end": "2026-08-10"},
-    {"title": "RRB NTPC 12th Level 2026",                   "key": "ntpc",      "vacancies": 3445,  "application_end": "2026-08-10"},
-    {"title": "RRB JE 2026 (Junior Engineer)",              "key": "je",        "vacancies": 7951,  "application_end": "2026-08-20"},
-    {"title": "RRB SSE 2026 (Senior Section Engineer)",     "key": "sse",       "vacancies": 2022,  "application_end": "2026-08-20"},
-    {"title": "RRB ALP 2026 (Assistant Loco Pilot)",        "key": "loco",      "vacancies": 18799, "application_end": "2026-09-01"},
-    {"title": "RPF Constable 2026 (Railway Protection Force)", "key": "constable","vacancies": 9000, "application_end": "2026-09-10"},
+    {"title": "RRB Group D 2026 (Level 1 Posts)",              "key": "group_d",   "vacancies": 32438, "application_end": "2026-08-05", "url": _RRB_URL},
+    {"title": "RRB NTPC Graduate Level 2026",                  "key": "ntpc",      "vacancies": 11558, "application_end": "2026-08-10", "url": _RRB_URL},
+    {"title": "RRB NTPC 12th Level 2026",                      "key": "ntpc",      "vacancies": 3445,  "application_end": "2026-08-10", "url": _RRB_URL},
+    {"title": "RRB JE 2026 (Junior Engineer)",                 "key": "je",        "vacancies": 7951,  "application_end": "2026-08-20", "url": _RRB_URL},
+    {"title": "RRB SSE 2026 (Senior Section Engineer)",        "key": "sse",       "vacancies": 2022,  "application_end": "2026-08-20", "url": _RRB_URL},
+    {"title": "RRB ALP 2026 (Assistant Loco Pilot)",           "key": "loco",      "vacancies": 18799, "application_end": "2026-09-01", "url": _RRB_URL},
+    {"title": "RPF Constable 2026 (Railway Protection Force)", "key": "constable", "vacancies": 9000,  "application_end": "2026-09-10", "url": _RRB_URL},
 ]
 
 # RRB regional pages to try in order
@@ -123,17 +125,24 @@ def _parse_html(html: str, base_url: str) -> list[RawJob]:
     jobs: list[RawJob] = []
     seen: set[str] = set()
 
-    for el in soup.select("table tr, ul li, .notice, .notification, p"):
+    for el in soup.select("table tr, ul li, .notice, .notification"):
         link = el.find("a", href=True)
         if not link:
             continue
         title = link.get_text(" ", strip=True)
-        if len(title) < 8:
+        if len(title) < 15:
             continue
+        # Real recruitment notices always include a year
+        if not re.search(r"20\d\d", title):
+            continue
+        # Must mention specific railway job types — "railway" alone is too broad
         if not re.search(
-            r"rrb|railway|recruitment|group.?d|ntpc|alp|loco|rpf|je\b|sse|engineer|constable|vacancy|vacancies",
+            r"rrb|group.?d|ntpc|alp|loco.?pilot|rpf|je\b|sse|junior.?engineer|senior.?section|constable|vacancy|vacancies|\d+\s*post",
             title, re.I
         ):
+            continue
+        # Exclude non-job documents (reports, statistics, press releases)
+        if re.search(r"statistic|annual.?report|press|statement|circular|policy|guideline|tender|corrigendum", title, re.I):
             continue
         if title in seen:
             continue
@@ -181,7 +190,7 @@ def _fallback_jobs() -> list[RawJob]:
         min_age, max_age = _AGE[key]
         jobs.append(RawJob(
             title=item["title"],
-            official_url="https://indianrailways.gov.in",
+            official_url=item.get("url", _RRB_URL),
             source="rrb",
             department="Railway Recruitment Boards",
             company="Indian Railways",

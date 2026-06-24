@@ -46,13 +46,13 @@ _AGE = {
 }
 
 FALLBACK: list[dict] = [
-    {"title": "UPSC Civil Services Exam 2026 (IAS/IPS/IFS)",  "key": "cse",     "vacancies": 1056,  "application_end": "2026-03-04", "exam_date": "2026-05-25"},
-    {"title": "UPSC CAPF 2026 (Central Armed Police Forces)",  "key": "capf",    "vacancies": 506,   "application_end": "2026-07-15"},
-    {"title": "UPSC Engineering Services Exam 2026",           "key": "ese",     "vacancies": 167,   "application_end": "2026-07-08"},
-    {"title": "UPSC NDA 2026 (National Defence Academy) II",   "key": "nda",     "vacancies": 404,   "application_end": "2026-08-05"},
-    {"title": "UPSC CDS 2026 (Combined Defence Services) II",  "key": "cds",     "vacancies": 459,   "application_end": "2026-08-12"},
-    {"title": "UPSC Combined Medical Services 2026",           "key": "cms",     "vacancies": 827,   "application_end": "2026-06-10"},
-    {"title": "UPSC IFS 2026 (Indian Forest Service)",         "key": "ifs",     "vacancies": 150,   "application_end": "2026-03-04"},
+    {"title": "UPSC Civil Services Exam 2026 (IAS/IPS/IFS)",  "key": "cse",  "vacancies": 1056, "application_end": "2026-03-04", "exam_date": "2026-05-25", "url": "https://upsc.gov.in/examinations/civil-services-examination"},
+    {"title": "UPSC CAPF 2026 (Central Armed Police Forces)",  "key": "capf", "vacancies": 506,  "application_end": "2026-07-15",                           "url": "https://upsc.gov.in/examinations/central-armed-police-forces-ac-examination"},
+    {"title": "UPSC Engineering Services Exam 2026",           "key": "ese",  "vacancies": 167,  "application_end": "2026-07-08",                           "url": "https://upsc.gov.in/examinations/engineering-services-examination"},
+    {"title": "UPSC NDA 2026 (National Defence Academy) II",   "key": "nda",  "vacancies": 404,  "application_end": "2026-08-05",                           "url": "https://upsc.gov.in/examinations/nda-and-na-examination"},
+    {"title": "UPSC CDS 2026 (Combined Defence Services) II",  "key": "cds",  "vacancies": 459,  "application_end": "2026-08-12",                           "url": "https://upsc.gov.in/examinations/combined-defence-services-examination"},
+    {"title": "UPSC Combined Medical Services 2026",           "key": "cms",  "vacancies": 827,  "application_end": "2026-06-10",                           "url": "https://upsc.gov.in/examinations/combined-medical-services-examination"},
+    {"title": "UPSC IFS 2026 (Indian Forest Service)",         "key": "ifs",  "vacancies": 150,  "application_end": "2026-03-04",                           "url": "https://upsc.gov.in/examinations/indian-forest-service-examination"},
 ]
 
 URLS = [
@@ -112,17 +112,23 @@ def _parse_html(html: str) -> list[RawJob]:
     jobs: list[RawJob] = []
     seen: set[str] = set()
 
-    for el in soup.select("table tr, ul li, .notice, .whats-new li, .content li, p"):
+    for el in soup.select("table tr, .whats-new li, .notice li, .notification li, .active-exam li"):
         link = el.find("a", href=True)
         if not link:
             continue
         title = link.get_text(" ", strip=True)
-        if len(title) < 8:
+        if len(title) < 15:
+            continue
+        # Real UPSC exam notifications always reference a year
+        if not re.search(r"20\d\d", title):
             continue
         if not re.search(
-            r"upsc|civil service|ias|ips|nda|cds|capf|ese|cms|ifs|recruitment|exam|vacancy",
+            r"upsc|civil service|ias|ips|nda|cds|capf|ese|cms|ifs|recruitment|exam|vacancy|vacancies",
             title, re.I
         ):
+            continue
+        # Exclude result/instruction notices — we want open recruitment only
+        if re.search(r"result|merit.?list|cut.?off|admit.?card|answer.?key|score.?card|instruction|mark|reserve.?list|lateral", title, re.I):
             continue
         if title in seen:
             continue
@@ -168,7 +174,7 @@ def _fallback_jobs() -> list[RawJob]:
         min_age, max_age = _AGE.get(key, _AGE["default"])
         jobs.append(RawJob(
             title=item["title"],
-            official_url="https://upsc.gov.in",
+            official_url=item.get("url", "https://upsc.gov.in/examinations/active-exams"),
             source="upsc",
             department="Union Public Service Commission",
             company="Government of India",

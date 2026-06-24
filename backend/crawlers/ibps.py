@@ -45,11 +45,11 @@ _MONTHS = {
 }
 
 FALLBACK: list[dict] = [
-    {"title": "IBPS PO 2026 (Probationary Officer)",       "key": "po",    "vacancies": 4455,  "application_end": "2026-07-25"},
-    {"title": "IBPS Clerk 2026",                           "key": "clerk", "vacancies": 6128,  "application_end": "2026-07-28"},
-    {"title": "IBPS SO 2026 (Specialist Officer)",         "key": "so",    "vacancies": 1500,  "application_end": "2026-08-05"},
-    {"title": "IBPS RRB PO 2026 (Regional Rural Banks)",   "key": "rrb",   "vacancies": 9000,  "application_end": "2026-08-12"},
-    {"title": "IBPS RRB Clerk 2026",                       "key": "rrb",   "vacancies": 11000, "application_end": "2026-08-15"},
+    {"title": "IBPS PO 2026 (Probationary Officer)",      "key": "po",    "vacancies": 4455,  "application_end": "2026-07-25", "url": "https://www.ibps.in/common-recruitment-process-for-probationary-officers/"},
+    {"title": "IBPS Clerk 2026",                          "key": "clerk", "vacancies": 6128,  "application_end": "2026-07-28", "url": "https://www.ibps.in/common-recruitment-process-for-clerks/"},
+    {"title": "IBPS SO 2026 (Specialist Officer)",        "key": "so",    "vacancies": 1500,  "application_end": "2026-08-05", "url": "https://www.ibps.in/common-recruitment-process-for-spos-sos/"},
+    {"title": "IBPS RRB PO 2026 (Regional Rural Banks)",  "key": "rrb",   "vacancies": 9000,  "application_end": "2026-08-12", "url": "https://www.ibps.in/common-recruitment-process-for-rbs-rrbs/"},
+    {"title": "IBPS RRB Clerk 2026",                      "key": "rrb",   "vacancies": 11000, "application_end": "2026-08-15", "url": "https://www.ibps.in/common-recruitment-process-for-rbs-rrbs/"},
 ]
 
 
@@ -97,15 +97,21 @@ def _parse_html(html: str) -> list[RawJob]:
     seen: set[str] = set()
 
     # IBPS lists recruitments in tables and anchor-based news sections
-    for el in soup.select("table tr, ul li, .notification-item, .recruit-item"):
+    for el in soup.select("table tr, .notification-item, .recruit-item, .latest-news li"):
         link = el.find("a", href=True)
         if not link:
             continue
         title = link.get_text(" ", strip=True)
-        if len(title) < 10:
+        if len(title) < 15:
             continue
-        # Only keep lines that look like recruitment notices
-        if not re.search(r"ibps|recruit|po\b|clerk|officer|rrb|so\b|probationary", title, re.I):
+        # Real job notifications always contain a year
+        if not re.search(r"20\d\d", title):
+            continue
+        # Must reference a recruitment event
+        if not re.search(r"recruit|crp\b|po\b|clerk|so\b|rrb|probationary|officer|vacancy|vacancies", title, re.I):
+            continue
+        # Exclude non-job page links
+        if re.search(r"chairman|social.?responsib|personnel.?selection|former\b|about\b|contact\b|csr\b|instruction|result|merit.?list|cut.?off|admit.?card|answer.?key|score.?card", title, re.I):
             continue
         if title in seen:
             continue
@@ -151,7 +157,7 @@ def _fallback_jobs() -> list[RawJob]:
         min_age, max_age = _AGE[key]
         jobs.append(RawJob(
             title=item["title"],
-            official_url="https://www.ibps.in",
+            official_url=item.get("url", "https://www.ibps.in/recruitment/"),
             source="ibps",
             department="Institute of Banking Personnel Selection",
             company="IBPS",
