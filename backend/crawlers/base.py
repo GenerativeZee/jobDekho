@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import logging
 from abc import ABC, abstractmethod
@@ -5,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 import httpx
+from playwright.async_api import async_playwright
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -61,19 +63,52 @@ class BaseCrawler(ABC):
     base_url: str = ""
     category: str = ""
 
-    async def fetch(self, url: str, timeout: int = 20) -> str | None:
-        """Fetch a URL with retry logic (3 attempts)."""
+    async def fetch(self, url: str, timeout: int = 30) -> str | None:
+        """Plain HTTP fetch with 3-attempt retry. SSL verify disabled for govt sites with bad certs."""
         for attempt in range(1, 4):
             try:
-                async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=timeout) as client:
+                async with httpx.AsyncClient(
+                    headers=HEADERS, follow_redirects=True, timeout=timeout, verify=False
+                ) as client:
                     resp = await client.get(url)
                     resp.raise_for_status()
                     return resp.text
             except httpx.HTTPStatusError as e:
                 logger.warning(f"[{self.source}] HTTP {e.response.status_code} on {url} (attempt {attempt})")
             except Exception as e:
-                logger.warning(f"[{self.source}] Error fetching {url} (attempt {attempt}): {e}")
+                logger.warning(f"[{self.source}] Fetch error on {url} (attempt {attempt}): {e}")
         return None
+
+    async def fetch_js(self, url: str, wait_selector: str | None = None, timeout: int = 30000) -> str | None:
+        """
+        Headless-browser fetch via Playwright.
+        Use for JS-rendered pages or sites that block plain HTTP.
+        wait_selector: CSS selector to wait for before returning HTML.
+        timeout: milliseconds.
+        """
+        try:
+            async with async_playwright() as pw:
+                browser = await pw.chromium.launch(headless=True)
+                ctx = await browser.new_context(
+                    user_agent=HEADERS["User-Agent"],
+                    locale="en-IN",
+                    extra_http_headers={"Accept-Language": "en-IN,en;q=0.9"},
+                )
+                page = await ctx.new_page()
+                await page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+                if wait_selector:
+                    try:
+                        await page.wait_for_selector(wait_selector, timeout=10000)
+                    except Exception:
+                        pass  # proceed even if selector never appears
+                # Let JS settle
+                await asyncio.sleep(2)
+                html = await page.content()
+                await browser.close()
+                return html
+        except Exception as e:
+            logger.warning(f"[{self.source}] Playwright fetch failed for {url}: {e}")
+            return None
 
     @abstractmethod
     async def crawl(self) -> list[RawJob]:

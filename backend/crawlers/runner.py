@@ -14,7 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.config import settings
 from crawlers.base import BaseCrawler, CrawlResult
+from crawlers.ibps import IBPSCrawler
+from crawlers.railway import RailwayCrawler
 from crawlers.ssc import SSCCrawler
+from crawlers.upsc import UPSCCrawler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,7 +28,10 @@ logger = logging.getLogger(__name__)
 
 # Registry: add new crawlers here as you build them
 CRAWLERS: dict[str, type[BaseCrawler]] = {
-    "ssc": SSCCrawler,
+    "ssc":     SSCCrawler,
+    "ibps":    IBPSCrawler,
+    "railway": RailwayCrawler,
+    "upsc":    UPSCCrawler,
 }
 
 
